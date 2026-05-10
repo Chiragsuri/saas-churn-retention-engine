@@ -54,7 +54,7 @@ cte_support AS (
     SELECT 
         account_id,
         count(ticket_id) as total_tickets,
-        COALESCE(avg(satisfaction_score), 0) as avg_satisfaction_score
+        ROUND(COALESCE(avg(satisfaction_score), 0), 2) as avg_satisfaction_score
     FROM
         `customer-chrun-project.ravenstack_analytics.support_tickets`
     GROUP BY
