@@ -6,24 +6,11 @@ Two pages. Different audiences. Different purposes.
 
 ---
 
-## Data Sources (all live BigQuery connections)
-
-| Source                 | Type           | Purpose                                           |
-| ---------------------- | -------------- | ------------------------------------------------- |
-| `churn_feature_matrix` | BigQuery View  | Account features, MRR, churn labels, renewal data |
-| `churn_scores`         | BigQuery Table | Model churn probability per account               |
-| `shap_explanations`    | BigQuery Table | Top 7 SHAP features per account (long format)     |
-
-**Relationships in Power BI Model view:**
-
-- `churn_scores[account_id]` → `churn_feature_matrix[account_id]` (Many-to-one)
-- `shap_explanations[account_id]` → `churn_feature_matrix[account_id]` (Many-to-one)
-
----
-
 ## Page 1: Executive Summary
 
 **Audience:** CRO, VP of Customer Success
+
+![Executive Summary](screenshots/page1_executive_summary.png)
 
 Five KPI cards across the top:
 
@@ -40,15 +27,17 @@ Four charts below:
 - **At-Risk MRR by Satisfaction Score** (column) — shows the counter-intuitive finding that CSAT 4–5 accounts contribute the most at-risk MRR
 - **At-Risk Accounts by Industry** (horizontal bar, all red) — DevTools leads at 83 accounts
 - **Revenue Breakdown: Retained vs At-Risk** (donut) — 31.68% / 68.32% split
-- **Value vs. Friction Analysis** (scatter) — MRR on Y-axis, support tickets on X, red/green by churn_label. High-MRR red dots in top-right quadrant are the priority accounts.
-
-Slicer: Plan Tier (Basic / Enterprise / Pro) — filters all visuals on this page.
+- **Value vs. Friction Analysis** (scatter) — MRR on Y-axis, support tickets on X, red/green by churn_label
 
 ---
 
 ## Page 2: CSM Action Board
 
 **Audience:** Customer Success Managers
+
+![CSM Action Board - Unfiltered](screenshots/page2_csm_action_board.png)
+
+![CSM Action Board - Filtered to 30 Days](screenshots/page2_csm_action_board_filtered.png)
 
 **Top-left: At-Risk Account Table**
 Filtered to `churn_label = At-Risk`, sorted by `churn_probability` descending.
@@ -64,25 +53,38 @@ Conditional formatting:
 **Top-right: SHAP Risk Drivers (horizontal bar)**
 Filters dynamically when a row is selected in the account table. Shows top 7 behavioral drivers for that account.
 
-- All-red bars = features pushing toward churn
-- Green bar = feature protecting against churn (e.g. low Days to Renewal for an account renewing soon)
-- X-axis label: "Churn Risk Contribution (SHAP Score)"
+- Red bars = features pushing toward churn
+- Green bars = features protecting against churn
 - Title updates to "Risk Drivers: [Account ID]" via DAX measure
-
-When no account is selected, the chart is hidden via `SHAP Value Filtered` measure returning BLANK().
+- Chart hides when no account is selected
 
 **Bottom-left: Churn Rate by Plan Tier (100% stacked bar)**
-Shows Pro/Basic/Enterprise churn split. Set to ignore the renewal urgency slicer via Edit Interactions — peer context needs to remain stable regardless of what filter the CSM applies.
+Shows Pro/Basic/Enterprise churn split. Set to ignore the renewal urgency slicer via Edit Interactions.
 
 **Bottom-right: Customer Snapshot (4 KPI cards)**
-Activates on account selection via SELECTEDVALUE DAX measures:
+Activates on account selection:
 
-- Account MRR (green)
-- Churn Score (red)
-- Days To Renewal (orange/red based on value)
-- Support Tickets (green/red based on value)
+- Account MRR
+- Churn Score
+- Days To Renewal
+- Support Tickets
 
-Slicer: Renewal Urgency (Renewing in 30 Days / Not Urgent) + Plan Tier
+**Slicers:** Renewal Urgency (Renewing in 30 Days / Not Urgent) + Plan Tier
+
+---
+
+## Data Sources (all live BigQuery connections)
+
+| Source                 | Type           | Purpose                                           |
+| ---------------------- | -------------- | ------------------------------------------------- |
+| `churn_feature_matrix` | BigQuery View  | Account features, MRR, churn labels, renewal data |
+| `churn_scores`         | BigQuery Table | Model churn probability per account               |
+| `shap_explanations`    | BigQuery Table | Top 7 SHAP features per account (long format)     |
+
+**Relationships:**
+
+- `churn_scores[account_id]` → `churn_feature_matrix[account_id]`
+- `shap_explanations[account_id]` → `churn_feature_matrix[account_id]`
 
 ---
 
@@ -134,20 +136,15 @@ RETURN IF(ISBLANK(sel), BLANK(), SELECTEDVALUE(churn_scores[churn_probability]))
 ## Reproduction Steps
 
 1. Open `RavenStack_Churn_Decision_Engine.pbix` in Power BI Desktop
-2. **Home → Transform Data → Data Source Settings** — update BigQuery credentials to your GCP project
+2. **Home → Transform Data → Data Source Settings** — update BigQuery credentials
 3. **View → Themes → Browse for themes** — apply `RavenStack_Light_Theme.json`
 4. Refresh all data sources
 
-The notebook must have been run first so `shap_explanations` and `churn_scores` tables exist in BigQuery.
+The notebook must be run first so `shap_explanations` and `churn_scores` exist in BigQuery.
 
 ---
 
-## Theme File
+## Theme Files
 
-Theme which is included:
-
-- `RavenStack_Light_Theme.json` — lavender canvas (`#F1F0FB`), white cards, purple accent (`#8410FF`). Used in the current dashboard.
-
-It includes:
-
-- pre-configured semantic colors (green for retained, red for at-risk), table header styling, and waterfall chart sentiment colors.
+- `RavenStack_Light_Theme.json` — lavender canvas, white cards, purple accent (applied)
+- `RavenStack_Dark_Theme.json` — near-black canvas, dark navy cards (alternative)

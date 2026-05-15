@@ -2,6 +2,8 @@
 
 An end-to-end ML pipeline that identifies at-risk B2B SaaS accounts before they cancel — built on Google BigQuery, XGBoost, SHAP, and Power BI.
 
+![Executive Summary Dashboard](dashboard/screenshots/page1_executive_summary.png)
+
 ---
 
 ## The Business Problem
@@ -21,6 +23,8 @@ Two things, tightly connected:
 **2. A Power BI decision engine** with two pages — an executive MRR summary for leadership, and a CSM Action Board where selecting an account dynamically updates a SHAP waterfall showing exactly what's driving that account's risk score.
 
 The whole thing runs off live BigQuery connections. No static CSVs, no manual refresh.
+
+![CSM Action Board](dashboard/screenshots/page2_csm_action_board_filtered.png)
 
 ---
 
@@ -92,12 +96,13 @@ ravenstack-churn-engine/
 │
 ├── notebooks/
 │   ├── 01_churn_prediction_model.ipynb
+│   ├── figures/
 │   └── README.md
 │
 ├── dashboard/
 │   ├── RavenStack_Churn_Decision_Engine.pbix
 │   ├── RavenStack_Light_Theme.json
-│   ├── RavenStack_Dark_Theme.json
+│   ├── screenshots/
 │   └── README.md
 │
 └── README.md
