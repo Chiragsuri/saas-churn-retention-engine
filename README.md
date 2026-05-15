@@ -2,7 +2,7 @@
 
 An end-to-end ML pipeline that identifies at-risk B2B SaaS accounts before they cancel — built on Google BigQuery, XGBoost, SHAP, and Power BI.
 
-![Executive Summary Dashboard](dashboard/screenshots/page1_executive_summary.png)
+![Executive Summary Dashboard](dashboards/screenshots/page1_executive_summary.png)
 
 ---
 
@@ -24,7 +24,7 @@ Two things, tightly connected:
 
 The whole thing runs off live BigQuery connections. No static CSVs, no manual refresh.
 
-![CSM Action Board](dashboard/screenshots/page2_csm_action_board_filtered.png)
+![CSM Action Board](dashboards/screenshots/page2_csm_action_board_filtered.png)
 
 ---
 
