@@ -1,111 +1,71 @@
-# Customer Churn & Retention Decision Engine
+# /notebooks
+
+This folder contains the full ML pipeline — from pulling data out of BigQuery to pushing SHAP values back in.
+
+One notebook. Ten cells. Everything is sequential; run them top to bottom.
 
 ---
 
-## 📌 Executive Summary
+## What the Notebook Does
 
-This project is an end-to-end predictive analytics pipeline designed to identify at-risk customers for **RavenStack**, a B2B SaaS platform. By leveraging cloud data architecture and machine learning, this decision engine transitions the Customer Success team from a reactive support model to a proactive retention strategy, protecting Monthly Recurring Revenue (MRR).
+**Cell 0 — Imports**
+Standard library imports: pandas, numpy, matplotlib.
 
----
+**Cell 1 — BigQuery Data Pull**
+Queries the `churn_feature_matrix` view directly. Returns 500 rows, one per account, with all engineered features including `days_since_last_usage`, `days_to_renewal`, and `renewal_urgency`.
 
-## 🏢 The Business Problem
+No embedded SQL — the view handles all feature engineering. Keeping the notebook clean here was a deliberate choice.
 
-During its pilot phase, RavenStack experienced unacceptably high user attrition, resulting in significant MRR leakage. Because the cost of acquiring a new customer (CAC) in the SaaS industry is significantly higher than retaining an existing one, the business required a data-driven system to flag churning accounts **30 days prior to their contract renewal**.
+**Cell 2 — Validation**
+Two quick checks: null counts (verifying COALESCE logic in SQL worked) and class distribution. The dataset has ~68% churn, which explains the `scale_pos_weight` decision in Cell 5.
 
----
+**Cell 3 — Correlation Matrix**
+Heatmap of feature correlations against `churn_target`. Confirms that no single feature is a near-perfect predictor — the model needs to combine signals. `total_tickets` and `avg_satisfaction_score` show a 0.23 correlation with each other, which makes sense.
 
-## 🛠️ Methodology & Technical Stack
+**Cell 4 — Preprocessing**
+Three things happen here:
 
-This project mimics a true enterprise production environment, executing the following pipeline:
+- Date decomposition: `last_usage_date` → year, month, day, weekday (XGBoost can't use raw dates)
+- Drop non-feature columns: `account_id`, `subscription_id`, `churn_target`, `churn_label`, `renewal_urgency`, `last_usage_date`
+- One-hot encoding of categoricals, then stratified 80/20 train/test split
 
-**Cloud Data Architecture (Google BigQuery & SQL):**
+`days_to_renewal` stays in X as a numeric feature. `renewal_urgency` is excluded — it's a string label derived from `days_to_renewal`, so keeping both would be redundant and potentially leaky.
 
-- Extracted and flattened five highly normalized relational tables: accounts, subscriptions, telemetry, support tickets, and churn events.
-- Engineered advanced SQL pipelines utilizing Common Table Expressions (CTEs) and Window Functions to handle complex one-to-many subscription relationships and resolve Cartesian explosions caused by customer reactivations.
+**Cell 5 — XGBoost Training**
+Class imbalance handled via `scale_pos_weight = negative_count / positive_count`. Model config: 200 estimators, learning rate 0.05, max depth 5. Nothing exotic.
 
-**Data Ingestion & Preprocessing (Python & Pandas):**
+**Cell 6 — Evaluation**
+Confusion matrix and classification report on the held-out test set. The model achieves 64% recall on the minority (churn) class — acceptable for a baseline, meaning 64 of every 100 actual churners get flagged before they leave.
 
-- Connected local analytical environments to Google BigQuery via the Google Cloud Python SDK.
-- Handled missing data, executed one-hot encoding, and utilized stratification during train/test splitting to preserve minority class distributions.
+**Cell 7 — SHAP Plots**
+Two visuals:
 
-**Machine Learning (Scikit-Learn & XGBoost):**
+- Global summary (beeswarm): top churn drivers across all test accounts. `avg_satisfaction_score` and `days_since_last_usage` dominate.
+- Local waterfall: per-account breakdown for the first predicted churner in the test set.
 
-- Trained an XGBoost classification model.
-- Due to the imbalanced nature of churn data, the algorithm was explicitly penalized for missing the minority class using the `scale_pos_weight` hyperparameter.
+These stay in the notebook as reference plots. They're not the same as the dashboard SHAP values (which are computed over all 500 accounts in Cell 8).
 
-**Model Optimization (The Recall Tradeoff):**
+**Cell 8 — SHAP Export to BigQuery**
+Computes SHAP values for all 500 accounts (not just the test set), melts to long format, keeps top 7 features per account by absolute SHAP value, adds readable display names, and pushes to `ravenstack_analytics.shap_explanations`.
 
-- The model was aggressively optimized for **Recall** rather than overall Accuracy.
-- In a B2B SaaS context, the financial penalty of a False Negative (failing to identify a churning customer and losing thousands in MRR) is astronomically higher than a False Positive (a Customer Success Manager conducting a proactive check-in).
+The long-format export is necessary for Power BI to create a filterable per-account waterfall chart.
 
-**Explainable AI (SHAP):**
-
-- Deployed SHapley Additive exPlanations (SHAP) to crack the machine learning "black box."
-- Generated **global summary plots** to identify macroeconomic churn drivers.
-- Generated **local waterfall plots** to provide Customer Success Managers with the exact behavioral reasons (e.g., specific inactivity periods or unresolved support tickets) driving an individual account's risk score.
-
----
-
-## 📈 Key Results & Business Impact
-
-- Successfully architected a predictive model capable of capturing **64% of actual churners** on baseline, un-tuned data, providing a robust foundation for targeted retention campaigns.
-- Empirically proved through SHAP analysis that **Recency of Engagement** (days since last active session) is the primary leading indicator of churn across the business.
-- Delivered actionable intelligence to the Customer Success team, enabling them to prioritize daily outreach based on **quantitative risk scores** and specific **feature-level drivers**.
+**Cell 9 — Churn Probability Export**
+Runs `predict_proba` on all 500 accounts and pushes results to `ravenstack_analytics.churn_scores`. This is the probability score shown in the Power BI CSM table (not the binary prediction from Cell 6).
 
 ---
 
-## 📂 Repository Structure
+## BigQuery Tables Created
 
-The repository is structured to reflect a production-ready analytics workflow:
-
-- `/docs` contains all business and technical documentation.
-- `/sql` stores feature engineering queries and data extraction pipelines.
-- `/notebooks` holds interactive Jupyter Notebooks for EDA, preprocessing, model training, and explainability.
-
-This organization ensures reproducibility, maintainability, and ease of handoff—even as a solo data scientist.
+| Table               | Rows   | Description                                   |
+| ------------------- | ------ | --------------------------------------------- |
+| `shap_explanations` | ~3,500 | Top 7 SHAP features per account (long format) |
+| `churn_scores`      | 500    | Churn probability per account (0–1)           |
 
 ---
 
-## 🗂️ Data & ML Pipeline Diagram
+## Notes
 
-Google BigQuery Tables
-├─ accounts
-├─ subscriptions
-├─ telemetry
-├─ support tickets
-└─ churn events
-│
-▼
-Data Extraction & Feature Engineering (SQL & CTEs)
-│
-▼
-Preprocessing in Python (Pandas)
-├─ Handle missing values
-├─ One-hot encoding of categorical features
-└─ Train/test split (stratified)
-│
-▼
-XGBoost Model Training
-├─ scale_pos_weight for class imbalance
-├─ Optimized for Recall
-└─ Predict churn probability
-│
-▼
-Model Explainability (SHAP)
-├─ Global: summary plots for top churn drivers
-└─ Local: waterfall plots for individual accounts
-│
-▼
-Actionable Insights for Customer Success
-├─ Prioritize high-risk accounts
-└─ Personalized outreach based on feature-level risk
-
----
-
-## 📝 Summary
-
-This README fully documents a **production-ready churn prediction engine**:
-
-- End-to-end pipeline: data → model → explainability → business actions.
-- Focused on **Recall optimization** to minimize MRR loss.
-- Clear structure and reproducibility for single-person execution.
+- Re-running the notebook overwrites both BigQuery tables (`if_exists='replace'`)
+- The `X_train.columns` alignment in Cell 8 ensures `X_export` has identical columns to the training set, including the same one-hot encoded columns in the same order
+- `days_to_renewal` appears in SHAP output with display name "Days to Renewal" — it contributes negatively for accounts with renewals far out (model correctly learns that imminent renewals increase churn risk)
